@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pufflescape - Proyecto Arcade</title>
+    <!-- Vinculación moderna de estilos[cite: 51, 67] -->
+    <link rel="stylesheet" href="src/css/style.css">
+</head>
+<body class="juego-contenedor">
+    
+    <header class="cabecera">
+        <h1 class="cabecera_titulo">Proyecto Arcade </h1>
+        <button id="btn-ayuda" class="boton boton--info">Reglas del Juego</button>
+    </header>
+
+    <main class="escenario">
+        <!-- Lienzo para la API Canvas[cite: 3] -->
+        <canvas id="appCanvas" width="800" height="400" class="escenario_lienzo"></canvas>
+    </main>
+
+    <!-- Componente de ayuda nativo HTML5[cite: 67] -->
+    <dialog id="modal-ayuda" class="modal">
+        <h2 class="modal_titulo">Cómo jugar</h2>
+        <p class="modal_texto">Usa las flechas <strong>Izquierda / Derecha</strong> para coger inercia y rodar por las cuestas.</p>
+        <p class="modal_texto">Usa <strong>Arriba</strong> para saltar si estás apoyado.</p>
+        <p class="modal_texto">Objetivo: Recoge la llave dorada y alcanza la meta.</p>
+        <button id="btn-cerrar-ayuda" class="boton boton--accion">Entendido</button>
+    </dialog>
+
+    <!-- Vinculación del JS como módulo[cite: 49] -->
+    <script type="module" src="src/js/main.js"></script>
+</body>
+</html>
