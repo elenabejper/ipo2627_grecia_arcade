@@ -1,4 +1,4 @@
-/**
+ /**
  * src/js/controlador.js
  * 
  * CAPA CONTROLADOR (MVC): 
