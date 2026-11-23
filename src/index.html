@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Neon Pulse, juego arcade de plataformas realizado con Canvas API y arquitectura MVC en IPO.">
+    <title>Neon Pulse | Arcade IPO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Pixelify+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="src/css/style.css">
+    <script type="module" src="src/js/main.js"></script>
+</head>
+<body class="pagina">
+    <div class="pagina__contenido">
+        <header class="cabecera">
+            <div class="cabecera__identidad">
+                <span class="cabecera__simbolo" aria-hidden="true">✳</span>
+                <span>IPO <span class="cabecera__separador" aria-hidden="true">/</span> ARCADE NEÓN</span>
+                <span class="cabecera__curso">2026/27</span>
+            </div>
+            <div class="cabecera__cuerpo">
+                <div class="cabecera__presentacion">
+                    <h1 class="cabecera__titulo">Neon<span class="cabecera__titulo-acento">Pulse</span><span class="cabecera__destello" aria-hidden="true">✦</span></h1>
+                    <p class="cabecera__descripcion">Un universo de plataformas luminosas. Rueda, salta, recupera la llave y encuentra el portal.</p>
+                </div>
+                <div class="cabecera__acciones">
+                    <span class="cabecera__pregunta">¿Primera partida?</span>
+                    <button id="btn-ayuda" type="button" class="boton boton--principal"><span aria-hidden="true">?</span> Cómo jugar</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="contenido-principal">
+            <section class="escenario" id="escenario" aria-labelledby="escenario-titulo">
+                <div class="escenario__cabecera">
+                    <h2 class="escenario__titulo" id="escenario-titulo"><span class="escenario__indicador" aria-hidden="true"></span> NEON RUN <span class="escenario__titulo-suave">· Neon Pulse</span></h2>
+                    <span class="escenario__nota">CANVAS API · 2D</span>
+                </div>
+
+                <!-- El marcador es HTML real, nunca se dibuja sobre Canvas. -->
+                <div class="marcador" aria-label="Indicadores de la partida">
+                    <div class="marcador__dato">
+                        <span class="marcador__etiqueta">SECTOR</span>
+                        <output id="hud-sector" class="marcador__valor" aria-live="polite">1 / 5</output>
+                    </div>
+                    <div class="marcador__dato">
+                        <span class="marcador__etiqueta">VIDAS</span>
+                        <output id="hud-vidas" class="marcador__valor marcador__valor--vidas" aria-label="3 de 3 vidas disponibles">♥ ♥ ♥</output>
+                    </div>
+                    <div class="marcador__dato marcador__dato--objetivo">
+                        <span class="marcador__etiqueta">OBJETIVO</span>
+                        <output id="hud-llave" class="marcador__valor marcador__valor--llave">◇ Busca la llave</output>
+                    </div>
+                    <div class="marcador__dato marcador__dato--progreso">
+                        <span id="hud-modo" class="marcador__etiqueta">CAMPAÑA</span>
+                        <progress id="hud-avance" max="5" value="1" aria-label="Progreso de sectores"></progress>
+                    </div>
+                </div>
+
+                <div class="escenario__marco">
+                    <canvas id="appCanvas" class="escenario__lienzo" tabindex="0" width="800" height="400" aria-label="Escenario del juego Neon Pulse">
+                        Tu navegador no admite Canvas API.
+                    </canvas>
+                    <!-- Intro/pausa/fin como contenido semántico, independiente del dibujo. -->
+                    <div class="pantalla" id="pantalla-juego" aria-live="polite">
+                        <div class="pantalla__tarjeta">
+                            <p class="pantalla__eyebrow">NEON PULSE · ARCADE</p>
+                            <h3 class="pantalla__titulo" id="pantalla-titulo">TU MISIÓN COMIENZA AQUÍ</h3>
+                            <p class="pantalla__descripcion" id="pantalla-descripcion">Muévete, recoge la llave y alcanza el portal. Elige un sector y comienza.</p>
+                            <div class="pantalla__inicio" id="pantalla-inicio">
+                                <label for="seleccion-nivel" class="pantalla__etiqueta">Empezar desde</label>
+                                <select id="seleccion-nivel" class="pantalla__select">
+                                    <option value="0">Sector 1 · Inicio</option>
+                                    <option value="1">Sector 2 · El pozo</option>
+                                    <option value="2">Sector 3 · Bifurcación</option>
+                                    <option value="3">Sector 4 · Salto de fe</option>
+                                    <option value="4">Sector 5 · Laberinto</option>
+                                    <option value="5">Modo infinito · Extra</option>
+                                </select>
+                                <button id="btn-comenzar" class="boton boton--principal" type="button">▶ Comenzar partida</button>
+                            </div>
+                            <div id="pantalla-acciones" class="pantalla__acciones" hidden>
+                                <button id="btn-reanudar" type="button" class="boton boton--principal" hidden>▶ Reanudar</button>
+                                <button id="btn-reiniciar" type="button" class="boton boton--principal">↻ Nueva partida</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Los botones y eventos se registran en controlador.js. -->
+                <div class="escenario__pie">
+                    <div class="escenario__instrucciones" aria-label="Controles de juego">
+                        <span class="tecla" aria-hidden="true">←</span>
+                        <span class="tecla" aria-hidden="true">→</span> <span>Mover</span>
+                        <span class="tecla" aria-hidden="true">↑</span> <span>Saltar</span>
+                        <span class="escenario__atajo">(también A, D, W y espacio)</span>
+                    </div>
+                    <div class="escenario__botones">
+                        <button type="button" id="btn-pausar" class="boton boton--secundario" disabled>Ⅱ Pausar</button>
+                        <button type="button" id="btn-finalizar" class="boton boton--peligro" disabled>■ Finalizar</button>
+                    </div>
+                </div>
+                <p class="escenario__objetivo">Recoge la <strong>llave</strong> y entra en el <strong>portal</strong>. Tienes tres vidas en cada sector. Pulsa <kbd>P</kbd> para pausar.</p>
+            </section>
+        </main>
+    </div>
+
+    <footer class="pie-pagina">
+        <div class="pie-pagina__interior">
+            <section class="pie-pagina__bloque" aria-label="Información académica">
+                <h2 class="pie-pagina__etiqueta">Asignatura</h2>
+                <p class="pie-pagina__titulo">Interacción Persona-Ordenador</p>
+                <p class="pie-pagina__detalle">Curso 2026/27</p>
+            </section>
+            <section class="pie-pagina__bloque" aria-label="Autores">
+                <h2 class="pie-pagina__etiqueta">Desarrollado por</h2>
+                <p class="pie-pagina__nombre">Elena Bejarano Periñán</p>
+                <p class="pie-pagina__nombre">Isaac Rodríguez Godino</p>
+            </section>
+        </div>
+    </footer>
+
+    <dialog id="modal-ayuda" class="modal" aria-labelledby="modal-ayuda-titulo">
+        <p class="modal__etiqueta">MANUAL DE JUEGO</p>
+        <h2 id="modal-ayuda-titulo" class="modal__titulo">Cómo jugar</h2>
+        <p class="modal__texto">Pulsa <strong>Izquierda / Derecha</strong> o <strong>A / D</strong> para desplazarte con inercia.</p>
+        <p class="modal__texto">Usa <strong>Arriba</strong>, <strong>W</strong> o <strong>Espacio</strong> para saltar. Las paredes no se pueden subir sin saltar.</p>
+        <p class="modal__texto">Recoge la <strong>llave dorada</strong> y cruza el <strong>portal</strong> para avanzar. Tienes tres vidas por sector y vuelves al primero si se agotan.</p>
+        <p class="modal__texto">Pulsa <strong>P</strong> o usa los botones para pausar, reanudar y finalizar.</p>
+        <button type="button" id="btn-cerrar-ayuda" class="boton boton--principal">¡Entendido!</button>
+    </dialog>
+</body>
+</html>

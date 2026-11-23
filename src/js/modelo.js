@@ -1,12 +1,12 @@
 /**
- * src/js/modelo.js
- * 
- * CAPA MODELO (MVC): 
- * Gestiona el estado de la partida, la física, los niveles y las colisiones.
- * Totalmente independiente de la representación visual y del teclado[cite: 43].
+ * MODELO (MVC) — Neon Pulse.
+ * Guarda exclusivamente los datos y reglas del juego: niveles, vidas, estados,
+ * movimientos, saltos, colisiones y progresión. No conoce HTML, CSS ni Canvas.
+ * Los métodos públicos (comenzar, pausar, reanudar, finalizar, actualizar)
+ * son usados por el Controlador, nunca por los botones directamente.
  */
 
-// 1. BASE DE DATOS DE NIVELES ESTÁTICOS (Diseño Puzle / Backtracking)
+// Cinco sectores diseñados a mano; el modo infinito conserva el generador original.
 const NIVELES = [
     {
         // NIVEL 1: El dilema de izquierda o derecha
@@ -68,64 +68,89 @@ const NIVELES = [
     }
 ];
 
-// 2. CLASES DE DATOS
+export const NUM_NIVELES = NIVELES.length;
+export const VIDAS_POR_NIVEL = 3;
+const PASOS_COYOTE = 6;
+const PASOS_BUFFER_SALTO = 6;
+
 export class Jugador {
     constructor() {
         this.radio = 15;
-        this.aceleracion = 0.5; 
-        this.friccion = 0.92;   
-        this.gravedad = 0.6;
-        this.fuerzaSalto = -12;
-        
-        this.x = 0; 
+        // Valores por paso fijo de 1/60 s. Inercia gradual y frenado controlado.
+        this.aceleracionSuelo = 0.40;
+        this.aceleracionAire = 0.25;
+        this.velocidadMaxima = 5.2;
+        this.friccionSuelo = 0.78;
+        this.friccionAire = 0.99;
+        this.gravedad = 0.57;
+        this.fuerzaSalto = -13.5;
+        this.velocidadCaidaMaxima = 13;
+        this.x = 0;
         this.y = 0;
         this.vx = 0;
         this.vy = 0;
         this.enSuelo = false;
         this.tieneLlave = false;
+        this.pasosCoyote = 0;
+        this.pasosBufferSalto = 0;
     }
 }
 
-// 3. LÓGICA DE NEGOCIO PRINCIPAL
 export class Modelo {
     constructor() {
         this.jugador = new Jugador();
-        this.indiceNivel = 0; 
-        this.estado = 'jugando'; 
-        
-        this.cargarNivel(this.indiceNivel);
+        this.totalNiveles = NUM_NIVELES;
+        this.vidasPorNivel = VIDAS_POR_NIVEL;
+        this.vidas = VIDAS_POR_NIVEL;
+        this.indiceNivel = 0;
+        this.modo = 'campana';
+        this.estado = 'inicio'; // inicio | jugando | pausa | victoria | sin_vidas | finalizado
+        this.configNivelActual = null;
+        this.cargarNivel(0);
     }
 
-    cargarNivel(indice) {
-        let config;
+    comenzar(indiceInicial = 0) {
+        const indice = Math.max(0, Math.min(NUM_NIVELES, Number(indiceInicial) || 0));
+        this.modo = indice >= NUM_NIVELES ? 'infinito' : 'campana';
+        this.indiceNivel = indice;
+        this.vidas = this.vidasPorNivel;
+        this.cargarNivel(indice);
+        this.estado = 'jugando';
+    }
 
-        if (indice < NIVELES.length) {
-            config = NIVELES[indice];
-        } else {
-            config = this.generarNivelProcedural();
+    pausar() {
+        if (this.estado === 'jugando') this.estado = 'pausa';
+    }
+
+    reanudar() {
+        if (this.estado === 'pausa') this.estado = 'jugando';
+    }
+
+    finalizar() {
+        if (this.estado === 'jugando' || this.estado === 'pausa') {
+            this.estado = 'finalizado';
         }
-        
+    }
+
+    cargarNivel(indice, { conservarEscenario = false } = {}) {
+        const config = conservarEscenario && this.configNivelActual && this.configNivelActual.indice === indice
+            ? this.configNivelActual.datos
+            : indice < NUM_NIVELES ? NIVELES[indice] : this.generarNivelProcedural();
+
+        // Solo copia de datos, nunca se mutan los niveles base ni el generador.
+        this.configNivelActual = { indice, datos: structuredClone(config) };
         this.nivel = {
-            plataformas: JSON.parse(JSON.stringify(config.plataformas)),
+            plataformas: config.plataformas.map(p => ({ ...p })),
             llave: { ...config.llave, recogida: false },
             puerta: { ...config.puerta, abierta: false }
         };
-
-        this.jugador.x = config.inicioX;
-        this.jugador.y = config.inicioY;
-        this.jugador.vx = 0;
-        this.jugador.vy = 0;
-        this.jugador.tieneLlave = false;
+        Object.assign(this.jugador, {
+            x: config.inicioX, y: config.inicioY, vx: 0, vy: 0,
+            enSuelo: false, tieneLlave: false, pasosCoyote: 0, pasosBufferSalto: 0
+        });
     }
 
-   /**
-     * Motor de Generación Procedural Complejo (Zig-Zag y Descenso)
-     * Crea rutas bidimensionales (vertical y horizontal) obligando al jugador 
-     * a dominar los rebotes, la aceleración y la inercia del Pufflescape.
-     */
-    /**
-     * Motor de Generación Procedural Complejo (Espaciado Vertical Optimizado)
-     */
+    /** Generador de escenarios extra, usado únicamente en el modo infinito. */
     generarNivelProcedural() {
         const plataformas = [];
         let inicioX = 400; 
@@ -203,86 +228,129 @@ export class Modelo {
         };
     }
 
-    /**
-     * Bucle de actualización (Tick del motor de juego).
-     * @param {Object} acciones - Objeto con booleanos { izquierda, derecha, saltar, abajo }
-     */
+
+    /** Un paso de simulación a 60 Hz. El Controlador regula la frecuencia. */
     actualizar(acciones) {
         if (this.estado !== 'jugando') return;
-
+        const antesY = this.jugador.y;
+        const antesX = this.jugador.x;
         this.aplicarFisica(acciones);
-        this.resolverColisionesEntorno();
+        this.resolverColisionesEntorno(antesX, antesY);
+        if (this.jugador.y > 620) {
+            this.perderVida();
+            return;
+        }
         this.evaluarReglasDeNegocio();
     }
 
     aplicarFisica(acciones) {
-        // Leemos las acciones unificadas enviadas por el controlador (WASD + Flechas)
-        if (acciones.izquierda) this.jugador.vx -= this.jugador.aceleracion;
-        if (acciones.derecha) this.jugador.vx += this.jugador.aceleracion;
-
-        if (acciones.saltar && this.jugador.enSuelo) {
-            this.jugador.vy = this.jugador.fuerzaSalto;
-            this.jugador.enSuelo = false;
+        const j = this.jugador;
+        const direccion = Number(Boolean(acciones.derecha)) - Number(Boolean(acciones.izquierda));
+        if (direccion) {
+            const aceleracion = j.enSuelo ? j.aceleracionSuelo : j.aceleracionAire;
+            j.vx = Math.max(-j.velocidadMaxima, Math.min(j.velocidadMaxima, j.vx + direccion * aceleracion));
+        } else {
+            j.vx *= j.enSuelo ? j.friccionSuelo : j.friccionAire;
+            if (Math.abs(j.vx) < 0.035) j.vx = 0;
         }
 
-        this.jugador.vy += this.jugador.gravedad;
-        this.jugador.vx *= this.jugador.friccion;
-        this.jugador.x += this.jugador.vx;
-        this.jugador.y += this.jugador.vy;
+        if (j.enSuelo) j.pasosCoyote = PASOS_COYOTE;
+        else j.pasosCoyote = Math.max(0, j.pasosCoyote - 1);
+
+        if (acciones.saltar) j.pasosBufferSalto = PASOS_BUFFER_SALTO;
+        else j.pasosBufferSalto = Math.max(0, j.pasosBufferSalto - 1);
+
+        if (j.pasosBufferSalto > 0 && j.pasosCoyote > 0) {
+            j.vy = j.fuerzaSalto;
+            j.enSuelo = false;
+            j.pasosCoyote = 0;
+            j.pasosBufferSalto = 0;
+        }
+
+        j.vy = Math.min(j.velocidadCaidaMaxima, j.vy + j.gravedad);
     }
 
-    resolverColisionesEntorno() {
-        this.jugador.enSuelo = false;
+    /**
+     * Colisiones por ejes (X primero, Y después) con detección de cara de entrada.
+     * El personaje es un círculo; se usa su caja envolvente para paredes/suelos.
+     * Evita el antiguo error que teletransportaba al jugador hasta la parte
+     * superior de cualquier plataforma al chocar lateralmente sin saltar.
+     */
+    resolverColisionesEntorno(antesX, antesY) {
+        const j = this.jugador;
+        const radio = j.radio;
+        const margen = 0.001;
 
-        for (let plat of this.nivel.plataformas) {
-            let baseJugador = this.jugador.y + this.jugador.radio;
-            
-            if (this.jugador.x > plat.x && 
-                this.jugador.x < plat.x + plat.ancho &&
-                baseJugador > plat.y && 
-                this.jugador.y < plat.y + plat.alto) {
-                
-                this.jugador.y = plat.y - this.jugador.radio;
-                this.jugador.vy = 0;
-                this.jugador.enSuelo = true;
+        // Eje X: solo se considera pared si existe solapamiento vertical real.
+        j.x += j.vx;
+        for (const p of this.nivel.plataformas) {
+            if (j.y + radio <= p.y + margen || j.y - radio >= p.y + p.alto - margen) continue;
+            if (j.vx > 0 && antesX + radio <= p.x + margen && j.x + radio > p.x) {
+                j.x = p.x - radio;
+                j.vx = 0;
+            } else if (j.vx < 0 && antesX - radio >= p.x + p.ancho - margen && j.x - radio < p.x + p.ancho) {
+                j.x = p.x + p.ancho + radio;
+                j.vx = 0;
             }
         }
-        
-        // Pared invisible izquierda para no escapar del mapa hacia atrás
-        if (this.jugador.x - this.jugador.radio < -1000) { // Ampliado para el procedural
-            this.jugador.x = -1000 + this.jugador.radio;
-            this.jugador.vx = 0;
-        }
 
-        // Cae al vacío
-        if (this.jugador.y > 600) {
-            this.cargarNivel(this.indiceNivel); 
+        // Eje Y: solo aterriza al cruzar desde ARRIBA; desde abajo golpea el techo.
+        j.y += j.vy;
+        j.enSuelo = false;
+        for (const p of this.nivel.plataformas) {
+            if (j.x + radio <= p.x + margen || j.x - radio >= p.x + p.ancho - margen) continue;
+            if (j.vy >= 0 && antesY + radio <= p.y + margen && j.y + radio >= p.y) {
+                j.y = p.y - radio;
+                j.vy = 0;
+                j.enSuelo = true;
+            } else if (j.vy < 0 && antesY - radio >= p.y + p.alto - margen && j.y - radio <= p.y + p.alto) {
+                j.y = p.y + p.alto + radio;
+                j.vy = 0;
+            }
         }
+        if (j.x - radio < -1000) {
+            j.x = -1000 + radio;
+            j.vx = 0;
+        }
+    }
+
+    perderVida() {
+        this.vidas--;
+        if (this.vidas <= 0) {
+            // El siguiente intento comienza obligatoriamente en el sector 1.
+            this.modo = 'campana';
+            this.indiceNivel = 0;
+            this.cargarNivel(0);
+            this.estado = 'sin_vidas';
+            return;
+        }
+        // Al reaparecer se conserva el mismo nivel procedural, si lo hubiera.
+        this.cargarNivel(this.indiceNivel, { conservarEscenario: true });
     }
 
     evaluarReglasDeNegocio() {
-        if (!this.nivel.llave.recogida) {
-            let dx = this.jugador.x - this.nivel.llave.x;
-            let dy = this.jugador.y - this.nivel.llave.y;
-            let distancia = Math.sqrt(dx * dx + dy * dy);
-
-            if (distancia < this.jugador.radio + this.nivel.llave.radio) {
-                this.nivel.llave.recogida = true;
-                this.jugador.tieneLlave = true;
-                this.nivel.puerta.abierta = true; 
-            }
+        const j = this.jugador;
+        const llave = this.nivel.llave;
+        if (!llave.recogida && Math.hypot(j.x - llave.x, j.y - llave.y) < j.radio + llave.radio) {
+            llave.recogida = true;
+            j.tieneLlave = true;
+            this.nivel.puerta.abierta = true;
         }
-
-        if (this.nivel.puerta.abierta) {
-            let puerta = this.nivel.puerta;
-            if (this.jugador.x > puerta.x && 
-                this.jugador.x < puerta.x + puerta.ancho &&
-                this.jugador.y > puerta.y && 
-                this.jugador.y < puerta.y + puerta.alto) {
-                
-                this.indiceNivel++;
-                this.cargarNivel(this.indiceNivel);
-            }
+        const puerta = this.nivel.puerta;
+        if (puerta.abierta &&
+            j.x + j.radio > puerta.x && j.x - j.radio < puerta.x + puerta.ancho &&
+            j.y + j.radio > puerta.y && j.y - j.radio < puerta.y + puerta.alto) {
+            this.avanzarNivel();
         }
+    }
+
+    avanzarNivel() {
+        if (this.modo === 'campana' && this.indiceNivel === NUM_NIVELES - 1) {
+            this.estado = 'victoria';
+            return;
+        }
+        this.indiceNivel++;
+        this.vidas = this.vidasPorNivel; // Vidas nuevas por cada nivel.
+        this.cargarNivel(this.indiceNivel);
     }
 }
